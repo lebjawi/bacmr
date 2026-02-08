@@ -1,0 +1,179 @@
+You are a senior full-stack engineer. Initialize and scaffold a production-grade monorepo in a SINGLE Replit project (one repo, one deployment target).
+
+PROJECT GOAL
+Build “BACMR” as a responsive web app (mobile/tablet/desktop) targeting ~100 daily users.
+Tech stack (mandatory):
+- Next.js (App Router) + TypeScript (strict)
+- Tailwind CSS
+- Supabase (Postgres + Auth)
+- Stripe (subscriptions)
+- AI Tutor endpoint via Next.js route handler (provider key via env)
+- Admin Dashboard (protected, role-based) to manage curriculum: streams, session years, subjects, chapters, lessons, exams, grades, and content sources.
+
+IMPORTANT CONSTRAINTS
+- One codebase and one Replit project.
+- Use Next.js App Router conventions.
+- No separate backend server; use Next.js Route Handlers under /app/api.
+- Do not implement full UI/UX yet—only routing, layouts, placeholders, and foundational components + tests.
+- Everything must run cleanly immediately: typecheck, lint, tests, build.
+
+NON-NEGOTIABLE ENGINEERING STANDARDS
+1) Linting/Formatting
+- ESLint (Next + TS) + strict TypeScript
+- Prettier
+- Optional: Tailwind class sorting (prettier-plugin-tailwindcss)
+
+2) Pre-commit flow
+- Husky + lint-staged
+- On commit: prettier, eslint, typecheck, unit tests (fast)
+
+3) CI/CD
+- Add GitHub Actions in .github/workflows/ci.yml:
+  - install
+  - lint
+  - typecheck
+  - test
+  - build
+- Optional: coverage upload (keep it simple)
+
+4) Testing
+- Unit/Integration: Vitest + React Testing Library
+- E2E: Playwright (smoke flows: auth, student dashboard load, admin route access control)
+
+5) Clean Architecture / Structure
+- /app for routes + layouts
+- /components for UI
+- /lib for supabase/auth/stripe/ai utilities
+- /domain for business logic (pure functions/services)
+- /db for SQL (schema + RLS + seed)
+
+6) Security
+- Supabase RLS policies must be included as SQL
+- Admin routes MUST be protected by server-side checks (not only client-side)
+- Admin role requirement: role IN ('PLATFORM_ADMIN','SUPER_ADMIN')
+
+7) Component File Requirement (React/Next)
+For each shared UI component:
+- Component.tsx
+- Component.spec.tsx
+(We do NOT use .html files. Use TSX with Tailwind classes.)
+
+8) Documentation
+- README.md: setup steps, scripts, env vars, Replit run instructions
+- CONTRIBUTING.md: local workflow, commit hooks, testing
+
+INITIAL FEATURES TO SCAFFOLD (placeholders OK; routing + guards must exist)
+Public/Student routes:
+- / (landing placeholder)
+- /auth/login
+- /auth/signup
+- /onboarding/track (choose stream + session year + language)
+- /dashboard
+- /subjects
+- /subjects/[id]/lessons/[lessonId]
+- /exam
+- /ai-tutor
+
+Admin routes (RBAC):
+- /admin
+- /admin/subjects
+- /admin/lessons
+- /admin/exams
+- /admin/sources
+Admin pages must be inaccessible unless user role is PLATFORM_ADMIN or SUPER_ADMIN (server-side enforcement).
+
+API ROUTES (Next.js App Router route handlers)
+- POST /api/ai/chat (validate input with zod; include basic rate-limit stub; return streaming optional but not required now)
+- POST /api/stripe/checkout
+- POST /api/stripe/webhook (verify signature; idempotent using stripe_events table)
+- GET/POST /api/progress/lesson
+- GET /api/exams/list
+- POST /api/exams/start
+- POST /api/exams/finish
+
+DATABASE (Supabase)
+Create SQL files in /db:
+- db/schema.sql
+- db/rls.sql
+- db/seed.sql
+
+Tables (minimum):
+- profiles (id uuid pk references auth.users, email, full_name, role, stream, session_year, language, created_at)
+- subjects (id, stream, name, slug, icon, order)
+- lessons (id, subject_id fk, title, slug, content jsonb/text, duration_minutes, order, is_public)
+- lesson_progress (id, user_id, lesson_id, status, percent, updated_at)
+- exam_papers (id, subject_id, year, session, stream, content jsonb/text, solution jsonb/text, is_public)
+- exam_attempts (id, user_id, exam_id, status, score, started_at, finished_at)
+- ai_threads (id, user_id, lesson_id nullable, created_at)
+- ai_messages (id, thread_id, role, content, created_at, citations jsonb nullable)
+- subscriptions (id, user_id, stripe_customer_id, plan, status, current_period_end)
+- stripe_events (id, stripe_event_id unique, type, received_at, payload jsonb)
+Optional (scaffold only):
+- content_sources (id, type, title, url, metadata jsonb)
+- content_chunks (id, source_id, chunk_text, embedding vector/jsonb, metadata jsonb)
+
+RLS rules:
+- Users can read/write ONLY their own profiles/progress/attempts/ai threads/messages/subscriptions
+- Subjects/lessons/exams can be public read when is_public = true
+- Admin role can CRUD curriculum tables
+(Provide the SQL policies explicitly in db/rls.sql)
+
+ENV VARS
+Create .env.example with:
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY (server only)
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- AI_PROVIDER_API_KEY (or OPENAI_API_KEY)
+- NEXT_PUBLIC_APP_URL
+
+IMPLEMENTATION TASKS (DO THESE FIRST, IN ORDER)
+1) Create Next.js + TS + Tailwind project with the clean structure above.
+2) Configure ESLint/Prettier and add scripts:
+   - lint
+   - format
+   - typecheck
+   - test
+   - test:e2e
+   - build
+3) Add Husky + lint-staged pre-commit that runs:
+   - prettier --write
+   - eslint --fix
+   - npm run typecheck
+   - npm run test
+4) Add GitHub Actions workflow (.github/workflows/ci.yml) that runs:
+   - npm ci
+   - npm run lint
+   - npm run typecheck
+   - npm run test
+   - npm run build
+5) Scaffold Supabase auth utilities:
+   - lib/supabase/client.ts (browser)
+   - lib/supabase/server.ts (server helpers)
+   - lib/auth/requireUser.ts
+   - lib/auth/requireAdmin.ts (server-side role check using profiles.role)
+6) Create protected admin layout and enforce guards server-side (redirect/403).
+7) Create minimal shared UI components with tests:
+   - components/Button.tsx + Button.spec.tsx
+   - components/Input.tsx + Input.spec.tsx
+   - components/Card.tsx + Card.spec.tsx
+   - components/PageShell.tsx + PageShell.spec.tsx
+8) Ensure:
+   - npm run test passes
+   - npm run build passes
+   - npm run typecheck passes
+
+OUTPUT REQUIREMENTS (PRINT THESE IN YOUR RESPONSE)
+A) Full folder structure created
+B) Key config file contents:
+   - package.json scripts
+   - ESLint config
+   - Prettier config
+   - Tailwind config
+   - Vitest config
+   - Playwright config
+   - Husky + lint-staged config
+   - GitHub Actions workflow
+C) README.md with exact steps to run locally and in Replit
+D) No TODOs for critical setup; everything must run clean immediately.
