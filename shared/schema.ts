@@ -1,183 +1,137 @@
-import { sql } from "drizzle-orm";
-import {
-  pgTable,
-  text,
-  varchar,
-  integer,
-  boolean,
-  timestamp,
-  jsonb,
-  serial,
-} from "drizzle-orm/pg-core";
+import { sql, relations } from "drizzle-orm";
+import { pgTable, text, varchar, integer, timestamp, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
 
-// ─── Users ───
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  fullName: text("full_name").notNull(),
-  role: text("role").notNull().default("student"), // 'student' | 'admin'
-  isActive: boolean("is_active").notNull().default(true),
-  streamId: integer("stream_id"),
-  sessionYear: integer("session_year").default(2026),
-  language: text("language").default("fr"), // 'fr' | 'ar'
-  createdAt: timestamp("created_at").defaultNow(),
+export * from "./models/auth";
+import { users } from "./models/auth";
+
+const vector = customType<{ data: number[]; driverValue: string }>({
+  dataType() {
+    return "vector(3072)";
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: unknown): number[] {
+    return (value as string)
+      .slice(1, -1)
+      .split(",")
+      .map(Number);
+  },
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-});
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const educationLevels = ["elementary", "secondary", "high_school"] as const;
+export type EducationLevel = typeof educationLevels[number];
 
-// ─── Streams (Série C, D, A, O) ───
-export const streams = pgTable("streams", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  code: text("code").notNull().unique(), // 'C', 'D', 'A', 'O'
-});
+export const specializations = ["C", "D", "A", "O", "TM"] as const;
+export type Specialization = typeof specializations[number];
 
-export const insertStreamSchema = createInsertSchema(streams).omit({ id: true });
-export type InsertStream = z.infer<typeof insertStreamSchema>;
-export type Stream = typeof streams.$inferSelect;
+export const sourceTypes = ["manual", "koutoubi"] as const;
+export type SourceType = typeof sourceTypes[number];
 
-// ─── Subjects ───
-export const subjects = pgTable("subjects", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  icon: text("icon").notNull().default("BookOpen"),
-  streamId: integer("stream_id").notNull(),
-  order: integer("order").notNull().default(0),
-});
-
-export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true });
-export type InsertSubject = z.infer<typeof insertSubjectSchema>;
-export type Subject = typeof subjects.$inferSelect;
-
-// ─── Chapters ───
-export const chapters = pgTable("chapters", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  subjectId: integer("subject_id").notNull(),
-  order: integer("order").notNull().default(0),
+export const pdfFiles = pgTable("pdf_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 500 }).notNull(),
+  subject: varchar("subject", { length: 100 }),
+  stream: varchar("stream", { length: 50 }),
+  year: integer("year"),
+  educationLevel: varchar("education_level", { length: 20 }),
+  yearNumber: integer("year_number"),
+  specialization: varchar("specialization", { length: 10 }),
+  sourceType: varchar("source_type", { length: 20 }).default("manual"),
+  sourceUrl: varchar("source_url", { length: 1000 }),
+  edition: varchar("edition", { length: 10 }),
+  storageKey: varchar("storage_key", { length: 500 }).notNull(),
+  checksum: varchar("checksum", { length: 64 }),
+  status: varchar("status", { length: 20 }).notNull().default("UPLOADED"),
+  pageCount: integer("page_count"),
+  fileSizeBytes: integer("file_size_bytes"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertChapterSchema = createInsertSchema(chapters).omit({ id: true });
-export type InsertChapter = z.infer<typeof insertChapterSchema>;
-export type Chapter = typeof chapters.$inferSelect;
-
-// ─── Lessons ───
-export const lessons = pgTable("lessons", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  content: text("content").notNull().default(""),
-  durationMinutes: integer("duration_minutes").notNull().default(15),
-  chapterId: integer("chapter_id").notNull(),
-  order: integer("order").notNull().default(0),
-  isPublic: boolean("is_public").notNull().default(true),
-});
-
-export const insertLessonSchema = createInsertSchema(lessons).omit({ id: true });
-export type InsertLesson = z.infer<typeof insertLessonSchema>;
-export type Lesson = typeof lessons.$inferSelect;
-
-// ─── Exam Papers ───
-export const examPapers = pgTable("exam_papers", {
-  id: serial("id").primaryKey(),
-  subjectId: integer("subject_id").notNull(),
-  year: integer("year").notNull(),
-  session: text("session").notNull(), // 'Normale' | 'Complémentaire'
-  streamId: integer("stream_id").notNull(),
-  content: text("content").notNull().default(""),
-  solution: text("solution"),
-  isPublic: boolean("is_public").notNull().default(true),
-});
-
-export const insertExamPaperSchema = createInsertSchema(examPapers).omit({ id: true });
-export type InsertExamPaper = z.infer<typeof insertExamPaperSchema>;
-export type ExamPaper = typeof examPapers.$inferSelect;
-
-// ─── Lesson Progress ───
-export const lessonProgress = pgTable("lesson_progress", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  lessonId: integer("lesson_id").notNull(),
-  completed: boolean("completed").notNull().default(false),
+export const ingestionJobs = pgTable("ingestion_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pdfFileId: varchar("pdf_file_id").notNull().references(() => pdfFiles.id),
+  status: varchar("status", { length: 20 }).notNull().default("QUEUED"),
+  totalPages: integer("total_pages").default(0),
+  pagesDone: integer("pages_done").default(0),
+  totalChunks: integer("total_chunks").default(0),
+  chunksDone: integer("chunks_done").default(0),
+  nextPageToProcess: integer("next_page_to_process").default(0),
+  nextChunkIndex: integer("next_chunk_index").default(0),
+  errorMessage: text("error_message"),
+  lastHeartbeatAt: timestamp("last_heartbeat_at"),
+  startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertLessonProgressSchema = createInsertSchema(lessonProgress).omit({
-  id: true,
-  completedAt: true,
-});
-export type InsertLessonProgress = z.infer<typeof insertLessonProgressSchema>;
-export type LessonProgress = typeof lessonProgress.$inferSelect;
-
-// ─── Exam Attempts ───
-export const examAttempts = pgTable("exam_attempts", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  examId: integer("exam_id").notNull(),
-  score: integer("score"),
-  startedAt: timestamp("started_at").defaultNow(),
-  finishedAt: timestamp("finished_at"),
-});
-
-export const insertExamAttemptSchema = createInsertSchema(examAttempts).omit({
-  id: true,
-  startedAt: true,
-  finishedAt: true,
-});
-export type InsertExamAttempt = z.infer<typeof insertExamAttemptSchema>;
-export type ExamAttempt = typeof examAttempts.$inferSelect;
-
-// ─── AI Conversations ───
-export const aiConversations = pgTable("ai_conversations", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  lessonId: integer("lesson_id"),
+export const pdfChunks = pgTable("pdf_chunks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pdfFileId: varchar("pdf_file_id").notNull().references(() => pdfFiles.id),
+  chunkIndex: integer("chunk_index").notNull(),
+  pageStart: integer("page_start").notNull(),
+  pageEnd: integer("page_end").notNull(),
+  text: text("text").notNull(),
+  embedding: vector("embedding"),
+  tokenCount: integer("token_count"),
+  sourceRef: varchar("source_ref", { length: 200 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertAiConversationSchema = createInsertSchema(aiConversations).omit({
+export const usersRelations = relations(users, ({ many }) => ({
+  pdfFiles: many(pdfFiles),
+}));
+
+export const pdfFilesRelations = relations(pdfFiles, ({ one, many }) => ({
+  uploader: one(users, {
+    fields: [pdfFiles.uploadedBy],
+    references: [users.id],
+  }),
+  ingestionJobs: many(ingestionJobs),
+  chunks: many(pdfChunks),
+}));
+
+export const ingestionJobsRelations = relations(ingestionJobs, ({ one }) => ({
+  pdfFile: one(pdfFiles, {
+    fields: [ingestionJobs.pdfFileId],
+    references: [pdfFiles.id],
+  }),
+}));
+
+export const pdfChunksRelations = relations(pdfChunks, ({ one }) => ({
+  pdfFile: one(pdfFiles, {
+    fields: [pdfChunks.pdfFileId],
+    references: [pdfFiles.id],
+  }),
+}));
+
+export const insertPdfFileSchema = createInsertSchema(pdfFiles).omit({
+  id: true,
+  uploadedAt: true,
+  updatedAt: true,
+});
+
+export const insertIngestionJobSchema = createInsertSchema(ingestionJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPdfChunkSchema = createInsertSchema(pdfChunks).omit({
   id: true,
   createdAt: true,
 });
-export type InsertAiConversation = z.infer<typeof insertAiConversationSchema>;
-export type AiConversation = typeof aiConversations.$inferSelect;
 
-// ─── AI Messages ───
-export const aiMessages = pgTable("ai_messages", {
-  id: serial("id").primaryKey(),
-  conversationId: integer("conversation_id").notNull(),
-  role: text("role").notNull(), // 'user' | 'assistant'
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export type InsertPdfFile = z.infer<typeof insertPdfFileSchema>;
+export type PdfFile = typeof pdfFiles.$inferSelect;
 
-export const insertAiMessageSchema = createInsertSchema(aiMessages).omit({
-  id: true,
-  createdAt: true,
-});
-export type InsertAiMessage = z.infer<typeof insertAiMessageSchema>;
-export type AiMessage = typeof aiMessages.$inferSelect;
+export type InsertIngestionJob = z.infer<typeof insertIngestionJobSchema>;
+export type IngestionJob = typeof ingestionJobs.$inferSelect;
 
-// ─── Subscriptions ───
-export const subscriptions = pgTable("subscriptions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().unique(),
-  stripeCustomerId: text("stripe_customer_id"),
-  plan: text("plan").notNull().default("free"), // 'free' | 'premium'
-  status: text("status").notNull().default("active"),
-  currentPeriodEnd: timestamp("current_period_end"),
-});
-
-export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
-  id: true,
-});
-export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
-export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertPdfChunk = z.infer<typeof insertPdfChunkSchema>;
+export type PdfChunk = typeof pdfChunks.$inferSelect;

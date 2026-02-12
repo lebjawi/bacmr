@@ -1,35 +1,44 @@
-import { useLanguage, LANGUAGES, type Language } from "@/lib/i18n";
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useLanguage, type Language } from "@/lib/i18n";
 
-export function LanguageToggle({ variant = "default" }: { variant?: "default" | "ghost" | "minimal" }) {
-  const { lang, setLang } = useLanguage();
-  const current = LANGUAGES.find(l => l.code === lang);
+const languages: { code: Language; label: string; display: string }[] = [
+  { code: "en", label: "English", display: "EN" },
+  { code: "fr", label: "Français", display: "FR" },
+  { code: "ar", label: "العربية", display: "AR" },
+];
+
+export function LanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+  const current = languages.find((l) => l.code === language) ?? languages[0];
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant={variant === "minimal" ? "ghost" : "outline"}
+          variant="ghost"
           size="sm"
-          className="gap-1.5 h-8 px-2.5"
           data-testid="button-language-toggle"
+          className="gap-1.5"
         >
-          <Globe className="w-3.5 h-3.5" />
-          <span className="text-xs font-medium uppercase">{lang}</span>
+          <Globe className="w-4 h-4" />
+          <span>{current.display}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {LANGUAGES.map((l) => (
+        {languages.map((lang) => (
           <DropdownMenuItem
-            key={l.code}
-            onClick={() => setLang(l.code)}
-            className={`gap-2 ${lang === l.code ? "font-bold bg-muted" : ""}`}
-            data-testid={`button-lang-${l.code}`}
+            key={lang.code}
+            data-testid={`option-lang-${lang.code}`}
+            onClick={() => setLanguage(lang.code)}
           >
-            <span>{l.nativeLabel}</span>
-            {lang === l.code && <span className="text-xs text-primary">✓</span>}
+            {lang.label}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

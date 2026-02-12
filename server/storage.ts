@@ -1,283 +1,357 @@
-import { eq, and, asc } from "drizzle-orm";
-import { db } from "./db";
 import {
-  users, type User, type InsertUser,
-  streams, type Stream, type InsertStream,
-  subjects, type Subject, type InsertSubject,
-  chapters, type Chapter, type InsertChapter,
-  lessons, type Lesson, type InsertLesson,
-  examPapers, type ExamPaper, type InsertExamPaper,
-  lessonProgress, type LessonProgress, type InsertLessonProgress,
-  examAttempts, type ExamAttempt, type InsertExamAttempt,
-  aiConversations, type AiConversation, type InsertAiConversation,
-  aiMessages, type AiMessage, type InsertAiMessage,
-  subscriptions, type Subscription, type InsertSubscription,
+  type User, type UpsertUser,
+  type PdfFile, type InsertPdfFile, pdfFiles,
+  type IngestionJob, type InsertIngestionJob, ingestionJobs,
+  type PdfChunk, type InsertPdfChunk, pdfChunks,
+  users,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, sql, desc, lt } from "drizzle-orm";
 
 export interface IStorage {
-  // Users
-  getUser(id: number): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  updateUserRole(id: string, role: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined>;
+  createUser(user: { username: string; passwordHash: string; email?: string; firstName?: string; lastName?: string; role: string }): Promise<User>;
+  updateUser(id: string, updates: { username?: string; email?: string; firstName?: string; lastName?: string; role?: string; isActive?: boolean }): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+  resetUserPassword(id: string, passwordHash: string): Promise<User | undefined>;
 
-  // Streams
-  getStreams(): Promise<Stream[]>;
-  getStream(id: number): Promise<Stream | undefined>;
-  createStream(stream: InsertStream): Promise<Stream>;
+  createPdfFile(data: InsertPdfFile): Promise<PdfFile>;
+  getPdfFile(id: string): Promise<PdfFile | undefined>;
+  listPdfFiles(): Promise<PdfFile[]>;
+  updatePdfFileStatus(id: string, status: string): Promise<PdfFile | undefined>;
+  getPdfFileByChecksum(checksum: string): Promise<PdfFile | undefined>;
+  getPdfFileBySourceUrl(sourceUrl: string): Promise<PdfFile | undefined>;
 
-  // Subjects
-  getSubjects(streamId?: number): Promise<Subject[]>;
-  getSubject(id: number): Promise<Subject | undefined>;
-  createSubject(subject: InsertSubject): Promise<Subject>;
-  updateSubject(id: number, data: Partial<InsertSubject>): Promise<Subject | undefined>;
-  deleteSubject(id: number): Promise<void>;
+  createIngestionJob(data: InsertIngestionJob): Promise<IngestionJob>;
+  getIngestionJob(id: string): Promise<IngestionJob | undefined>;
+  getJobsForPdf(pdfFileId: string): Promise<IngestionJob[]>;
+  listIngestionJobs(): Promise<IngestionJob[]>;
+  claimQueuedJob(): Promise<IngestionJob | undefined>;
+  updateJobProgress(id: string, updates: Partial<IngestionJob>): Promise<IngestionJob | undefined>;
+  markStalledJobs(timeoutMinutes: number): Promise<number>;
+  requeueJob(id: string): Promise<IngestionJob | undefined>;
 
-  // Chapters
-  getChapters(subjectId: number): Promise<Chapter[]>;
-  getChapter(id: number): Promise<Chapter | undefined>;
-  createChapter(chapter: InsertChapter): Promise<Chapter>;
-  updateChapter(id: number, data: Partial<InsertChapter>): Promise<Chapter | undefined>;
-  deleteChapter(id: number): Promise<void>;
-
-  // Lessons
-  getLessons(chapterId: number): Promise<Lesson[]>;
-  getLesson(id: number): Promise<Lesson | undefined>;
-  createLesson(lesson: InsertLesson): Promise<Lesson>;
-  updateLesson(id: number, data: Partial<InsertLesson>): Promise<Lesson | undefined>;
-  deleteLesson(id: number): Promise<void>;
-
-  // Exam Papers
-  getExamPapers(streamId?: number, subjectId?: number): Promise<ExamPaper[]>;
-  getExamPaper(id: number): Promise<ExamPaper | undefined>;
-  createExamPaper(exam: InsertExamPaper): Promise<ExamPaper>;
-  updateExamPaper(id: number, data: Partial<InsertExamPaper>): Promise<ExamPaper | undefined>;
-  deleteExamPaper(id: number): Promise<void>;
-
-  // Progress
-  getLessonProgress(userId: number, lessonId?: number): Promise<LessonProgress[]>;
-  upsertLessonProgress(data: InsertLessonProgress): Promise<LessonProgress>;
-
-  // Exam Attempts
-  getExamAttempts(userId: number): Promise<ExamAttempt[]>;
-  createExamAttempt(attempt: InsertExamAttempt): Promise<ExamAttempt>;
-
-  // AI Conversations
-  getConversations(userId: number, lessonId?: number): Promise<AiConversation[]>;
-  createConversation(conv: InsertAiConversation): Promise<AiConversation>;
-  getMessages(conversationId: number): Promise<AiMessage[]>;
-  createMessage(msg: InsertAiMessage): Promise<AiMessage>;
+  createPdfChunk(data: InsertPdfChunk): Promise<PdfChunk>;
+  createPdfChunks(data: InsertPdfChunk[]): Promise<PdfChunk[]>;
+  getChunksForPdf(pdfFileId: string): Promise<PdfChunk[]>;
+  searchChunksByVector(embedding: number[], limit?: number, filters?: { pdfFileId?: string; educationLevel?: string; pageStart?: number; pageEnd?: number }): Promise<(PdfChunk & { distance: number; pdfTitle: string })[]>;
+  getChunkCount(pdfFileId: string): Promise<number>;
+  deleteChunksFromIndex(pdfFileId: string, fromIndex: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // ─── Users ───
-  async getUser(id: number): Promise<User | undefined> {
+  async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: { ...userData, updatedAt: new Date() },
+      })
+      .returning();
     return user;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+  async updateUserRole(id: string, role: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
 
   async getAllUsers(): Promise<User[]> {
-    return db.select().from(users);
+    return await db.select().from(users).orderBy(users.createdAt);
   }
 
-  async createUser(user: InsertUser): Promise<User> {
-    const [created] = await db.insert(users).values(user).returning();
-    return created;
-  }
-
-  async updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined> {
-    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
-    return updated;
-  }
-
-  // ─── Streams ───
-  async getStreams(): Promise<Stream[]> {
-    return db.select().from(streams);
-  }
-
-  async getStream(id: number): Promise<Stream | undefined> {
-    const [stream] = await db.select().from(streams).where(eq(streams.id, id));
-    return stream;
-  }
-
-  async createStream(stream: InsertStream): Promise<Stream> {
-    const [created] = await db.insert(streams).values(stream).returning();
-    return created;
-  }
-
-  // ─── Subjects ───
-  async getSubjects(streamId?: number): Promise<Subject[]> {
-    if (streamId) {
-      return db.select().from(subjects).where(eq(subjects.streamId, streamId)).orderBy(asc(subjects.order));
-    }
-    return db.select().from(subjects).orderBy(asc(subjects.order));
-  }
-
-  async getSubject(id: number): Promise<Subject | undefined> {
-    const [subject] = await db.select().from(subjects).where(eq(subjects.id, id));
-    return subject;
-  }
-
-  async createSubject(subject: InsertSubject): Promise<Subject> {
-    const [created] = await db.insert(subjects).values(subject).returning();
-    return created;
-  }
-
-  async updateSubject(id: number, data: Partial<InsertSubject>): Promise<Subject | undefined> {
-    const [updated] = await db.update(subjects).set(data).where(eq(subjects.id, id)).returning();
-    return updated;
-  }
-
-  async deleteSubject(id: number): Promise<void> {
-    await db.delete(subjects).where(eq(subjects.id, id));
-  }
-
-  // ─── Chapters ───
-  async getChapters(subjectId: number): Promise<Chapter[]> {
-    return db.select().from(chapters).where(eq(chapters.subjectId, subjectId)).orderBy(asc(chapters.order));
-  }
-
-  async getChapter(id: number): Promise<Chapter | undefined> {
-    const [chapter] = await db.select().from(chapters).where(eq(chapters.id, id));
-    return chapter;
-  }
-
-  async createChapter(chapter: InsertChapter): Promise<Chapter> {
-    const [created] = await db.insert(chapters).values(chapter).returning();
-    return created;
-  }
-
-  async updateChapter(id: number, data: Partial<InsertChapter>): Promise<Chapter | undefined> {
-    const [updated] = await db.update(chapters).set(data).where(eq(chapters.id, id)).returning();
-    return updated;
-  }
-
-  async deleteChapter(id: number): Promise<void> {
-    await db.delete(chapters).where(eq(chapters.id, id));
-  }
-
-  // ─── Lessons ───
-  async getLessons(chapterId: number): Promise<Lesson[]> {
-    return db.select().from(lessons).where(eq(lessons.chapterId, chapterId)).orderBy(asc(lessons.order));
-  }
-
-  async getLesson(id: number): Promise<Lesson | undefined> {
-    const [lesson] = await db.select().from(lessons).where(eq(lessons.id, id));
-    return lesson;
-  }
-
-  async createLesson(lesson: InsertLesson): Promise<Lesson> {
-    const [created] = await db.insert(lessons).values(lesson).returning();
-    return created;
-  }
-
-  async updateLesson(id: number, data: Partial<InsertLesson>): Promise<Lesson | undefined> {
-    const [updated] = await db.update(lessons).set(data).where(eq(lessons.id, id)).returning();
-    return updated;
-  }
-
-  async deleteLesson(id: number): Promise<void> {
-    await db.delete(lessons).where(eq(lessons.id, id));
-  }
-
-  // ─── Exam Papers ───
-  async getExamPapers(streamId?: number, subjectId?: number): Promise<ExamPaper[]> {
-    const conditions = [];
-    if (streamId) conditions.push(eq(examPapers.streamId, streamId));
-    if (subjectId) conditions.push(eq(examPapers.subjectId, subjectId));
-    
-    if (conditions.length > 0) {
-      return db.select().from(examPapers).where(and(...conditions));
-    }
-    return db.select().from(examPapers);
-  }
-
-  async getExamPaper(id: number): Promise<ExamPaper | undefined> {
-    const [exam] = await db.select().from(examPapers).where(eq(examPapers.id, id));
-    return exam;
-  }
-
-  async createExamPaper(exam: InsertExamPaper): Promise<ExamPaper> {
-    const [created] = await db.insert(examPapers).values(exam).returning();
-    return created;
-  }
-
-  async updateExamPaper(id: number, data: Partial<InsertExamPaper>): Promise<ExamPaper | undefined> {
-    const [updated] = await db.update(examPapers).set(data).where(eq(examPapers.id, id)).returning();
-    return updated;
-  }
-
-  async deleteExamPaper(id: number): Promise<void> {
-    await db.delete(examPapers).where(eq(examPapers.id, id));
-  }
-
-  // ─── Progress ───
-  async getLessonProgress(userId: number, lessonId?: number): Promise<LessonProgress[]> {
-    if (lessonId) {
-      return db.select().from(lessonProgress)
-        .where(and(eq(lessonProgress.userId, userId), eq(lessonProgress.lessonId, lessonId)));
-    }
-    return db.select().from(lessonProgress).where(eq(lessonProgress.userId, userId));
-  }
-
-  async upsertLessonProgress(data: InsertLessonProgress): Promise<LessonProgress> {
-    const existing = await db.select().from(lessonProgress)
-      .where(and(eq(lessonProgress.userId, data.userId), eq(lessonProgress.lessonId, data.lessonId)));
-    
-    if (existing.length > 0) {
-      const [updated] = await db.update(lessonProgress)
-        .set({ completed: data.completed, completedAt: data.completed ? new Date() : null })
-        .where(eq(lessonProgress.id, existing[0].id))
-        .returning();
-      return updated;
-    }
-
-    const [created] = await db.insert(lessonProgress).values({
-      ...data,
-      completedAt: data.completed ? new Date() : null,
+  async createUser(userData: { username: string; passwordHash: string; email?: string; firstName?: string; lastName?: string; role: string }): Promise<User> {
+    const [user] = await db.insert(users).values({
+      username: userData.username,
+      passwordHash: userData.passwordHash,
+      email: userData.email || null,
+      firstName: userData.firstName || null,
+      lastName: userData.lastName || null,
+      role: userData.role,
     }).returning();
-    return created;
+    return user;
   }
 
-  // ─── Exam Attempts ───
-  async getExamAttempts(userId: number): Promise<ExamAttempt[]> {
-    return db.select().from(examAttempts).where(eq(examAttempts.userId, userId));
+  async updateUser(id: string, updates: { username?: string; email?: string; firstName?: string; lastName?: string; role?: string; isActive?: boolean }): Promise<User | undefined> {
+    const setObj: Record<string, any> = { updatedAt: new Date() };
+    if (updates.username !== undefined) setObj.username = updates.username;
+    if (updates.email !== undefined) setObj.email = updates.email;
+    if (updates.firstName !== undefined) setObj.firstName = updates.firstName;
+    if (updates.lastName !== undefined) setObj.lastName = updates.lastName;
+    if (updates.role !== undefined) setObj.role = updates.role;
+    if (updates.isActive !== undefined) setObj.isActive = updates.isActive;
+    const [user] = await db.update(users).set(setObj).where(eq(users.id, id)).returning();
+    return user || undefined;
   }
 
-  async createExamAttempt(attempt: InsertExamAttempt): Promise<ExamAttempt> {
-    const [created] = await db.insert(examAttempts).values(attempt).returning();
-    return created;
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id)).returning();
+    return result.length > 0;
   }
 
-  // ─── AI Conversations ───
-  async getConversations(userId: number, lessonId?: number): Promise<AiConversation[]> {
-    if (lessonId) {
-      return db.select().from(aiConversations)
-        .where(and(eq(aiConversations.userId, userId), eq(aiConversations.lessonId, lessonId)));
+  async resetUserPassword(id: string, passwordHash: string): Promise<User | undefined> {
+    const [user] = await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id)).returning();
+    return user || undefined;
+  }
+
+  async createPdfFile(data: InsertPdfFile): Promise<PdfFile> {
+    const [file] = await db.insert(pdfFiles).values(data).returning();
+    return file;
+  }
+
+  async getPdfFile(id: string): Promise<PdfFile | undefined> {
+    const [file] = await db.select().from(pdfFiles).where(eq(pdfFiles.id, id));
+    return file || undefined;
+  }
+
+  async listPdfFiles(): Promise<PdfFile[]> {
+    return db.select().from(pdfFiles).orderBy(desc(pdfFiles.uploadedAt));
+  }
+
+  async updatePdfFileStatus(id: string, status: string): Promise<PdfFile | undefined> {
+    const [file] = await db
+      .update(pdfFiles)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(pdfFiles.id, id))
+      .returning();
+    return file || undefined;
+  }
+
+  async getPdfFileByChecksum(checksum: string): Promise<PdfFile | undefined> {
+    const [file] = await db
+      .select()
+      .from(pdfFiles)
+      .where(eq(pdfFiles.checksum, checksum));
+    return file || undefined;
+  }
+
+  async getPdfFileBySourceUrl(sourceUrl: string): Promise<PdfFile | undefined> {
+    const [file] = await db
+      .select()
+      .from(pdfFiles)
+      .where(eq(pdfFiles.sourceUrl, sourceUrl));
+    return file || undefined;
+  }
+
+  async createIngestionJob(data: InsertIngestionJob): Promise<IngestionJob> {
+    const [job] = await db.insert(ingestionJobs).values(data).returning();
+    return job;
+  }
+
+  async getIngestionJob(id: string): Promise<IngestionJob | undefined> {
+    const [job] = await db
+      .select()
+      .from(ingestionJobs)
+      .where(eq(ingestionJobs.id, id));
+    return job || undefined;
+  }
+
+  async getJobsForPdf(pdfFileId: string): Promise<IngestionJob[]> {
+    return db
+      .select()
+      .from(ingestionJobs)
+      .where(eq(ingestionJobs.pdfFileId, pdfFileId))
+      .orderBy(desc(ingestionJobs.createdAt));
+  }
+
+  async listIngestionJobs(): Promise<IngestionJob[]> {
+    return db
+      .select()
+      .from(ingestionJobs)
+      .orderBy(desc(ingestionJobs.createdAt));
+  }
+
+  async claimQueuedJob(): Promise<IngestionJob | undefined> {
+    const result = await db.execute(sql`
+      UPDATE ingestion_jobs 
+      SET status = 'RUNNING', 
+          started_at = NOW(),
+          last_heartbeat_at = NOW(),
+          updated_at = NOW()
+      WHERE id = (
+        SELECT id FROM ingestion_jobs 
+        WHERE status = 'QUEUED' 
+        ORDER BY created_at ASC 
+        LIMIT 1 
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING *
+    `);
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0] as any;
+      return {
+        id: row.id,
+        pdfFileId: row.pdf_file_id,
+        status: row.status,
+        totalPages: row.total_pages,
+        pagesDone: row.pages_done,
+        totalChunks: row.total_chunks,
+        chunksDone: row.chunks_done,
+        nextPageToProcess: row.next_page_to_process,
+        nextChunkIndex: row.next_chunk_index,
+        errorMessage: row.error_message,
+        lastHeartbeatAt: row.last_heartbeat_at,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
     }
-    return db.select().from(aiConversations).where(eq(aiConversations.userId, userId));
+    return undefined;
   }
 
-  async createConversation(conv: InsertAiConversation): Promise<AiConversation> {
-    const [created] = await db.insert(aiConversations).values(conv).returning();
-    return created;
+  async updateJobProgress(id: string, updates: Partial<IngestionJob>): Promise<IngestionJob | undefined> {
+    const setObj: Record<string, any> = { updatedAt: new Date() };
+    if (updates.status !== undefined) setObj.status = updates.status;
+    if (updates.totalPages !== undefined) setObj.totalPages = updates.totalPages;
+    if (updates.pagesDone !== undefined) setObj.pagesDone = updates.pagesDone;
+    if (updates.totalChunks !== undefined) setObj.totalChunks = updates.totalChunks;
+    if (updates.chunksDone !== undefined) setObj.chunksDone = updates.chunksDone;
+    if (updates.nextPageToProcess !== undefined) setObj.nextPageToProcess = updates.nextPageToProcess;
+    if (updates.nextChunkIndex !== undefined) setObj.nextChunkIndex = updates.nextChunkIndex;
+    if (updates.errorMessage !== undefined) setObj.errorMessage = updates.errorMessage;
+    if (updates.lastHeartbeatAt !== undefined) setObj.lastHeartbeatAt = updates.lastHeartbeatAt;
+    if (updates.completedAt !== undefined) setObj.completedAt = updates.completedAt;
+
+    const [job] = await db
+      .update(ingestionJobs)
+      .set(setObj)
+      .where(eq(ingestionJobs.id, id))
+      .returning();
+    return job || undefined;
   }
 
-  async getMessages(conversationId: number): Promise<AiMessage[]> {
-    return db.select().from(aiMessages)
-      .where(eq(aiMessages.conversationId, conversationId))
-      .orderBy(asc(aiMessages.createdAt));
+  async markStalledJobs(timeoutMinutes: number): Promise<number> {
+    const cutoff = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+    const result = await db
+      .update(ingestionJobs)
+      .set({
+        status: "PAUSED",
+        errorMessage: `Job timed out: no heartbeat for ${timeoutMinutes} minutes`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(ingestionJobs.status, "RUNNING"),
+          lt(ingestionJobs.lastHeartbeatAt, cutoff)
+        )
+      )
+      .returning();
+    return result.length;
   }
 
-  async createMessage(msg: InsertAiMessage): Promise<AiMessage> {
-    const [created] = await db.insert(aiMessages).values(msg).returning();
-    return created;
+  async requeueJob(id: string): Promise<IngestionJob | undefined> {
+    const [job] = await db
+      .update(ingestionJobs)
+      .set({
+        status: "QUEUED",
+        errorMessage: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(ingestionJobs.id, id),
+          sql`status IN ('PAUSED', 'FAILED')`
+        )
+      )
+      .returning();
+    return job || undefined;
+  }
+
+  async createPdfChunk(data: InsertPdfChunk): Promise<PdfChunk> {
+    const [chunk] = await db.insert(pdfChunks).values(data as any).returning();
+    return chunk;
+  }
+
+  async createPdfChunks(data: InsertPdfChunk[]): Promise<PdfChunk[]> {
+    if (data.length === 0) return [];
+    return db.insert(pdfChunks).values(data as any).returning();
+  }
+
+  async getChunksForPdf(pdfFileId: string): Promise<PdfChunk[]> {
+    return db
+      .select()
+      .from(pdfChunks)
+      .where(eq(pdfChunks.pdfFileId, pdfFileId))
+      .orderBy(pdfChunks.chunkIndex);
+  }
+
+  async searchChunksByVector(
+    embedding: number[],
+    limit: number = 8,
+    filters?: { pdfFileId?: string; educationLevel?: string; pageStart?: number; pageEnd?: number }
+  ): Promise<(PdfChunk & { distance: number; pdfTitle: string })[]> {
+    const vectorStr = `[${embedding.join(",")}]`;
+
+    let filterClause = sql``;
+    if (filters?.pageStart !== undefined && filters?.pageEnd !== undefined && filters?.pdfFileId) {
+      filterClause = sql`AND pc.pdf_file_id = ${filters.pdfFileId} AND pc.page_start >= ${filters.pageStart} AND pc.page_end <= ${filters.pageEnd}`;
+    } else if (filters?.pdfFileId) {
+      filterClause = sql`AND pc.pdf_file_id = ${filters.pdfFileId}`;
+    } else if (filters?.educationLevel) {
+      filterClause = sql`AND pf.education_level = ${filters.educationLevel}`;
+    }
+
+    const result = await db.execute(sql`
+      SELECT pc.*, 
+             pc.embedding <=> ${vectorStr}::vector AS distance,
+             pf.title AS pdf_title
+      FROM pdf_chunks pc
+      JOIN pdf_files pf ON pc.pdf_file_id = pf.id
+      WHERE pc.embedding IS NOT NULL
+      AND pf.status = 'READY'
+      ${filterClause}
+      ORDER BY pc.embedding <=> ${vectorStr}::vector
+      LIMIT ${limit}
+    `);
+    return (result.rows as any[]).map(row => ({
+      id: row.id,
+      pdfFileId: row.pdf_file_id,
+      chunkIndex: row.chunk_index,
+      pageStart: row.page_start,
+      pageEnd: row.page_end,
+      text: row.text,
+      embedding: row.embedding,
+      tokenCount: row.token_count,
+      sourceRef: row.source_ref,
+      createdAt: row.created_at,
+      distance: parseFloat(row.distance),
+      pdfTitle: row.pdf_title,
+    }));
+  }
+
+  async getChunkCount(pdfFileId: string): Promise<number> {
+    const result = await db.execute(sql`
+      SELECT COUNT(*) as count FROM pdf_chunks WHERE pdf_file_id = ${pdfFileId}
+    `);
+    return parseInt((result.rows[0] as any).count, 10);
+  }
+
+  async deleteChunksFromIndex(pdfFileId: string, fromIndex: number): Promise<void> {
+    await db.execute(sql`
+      DELETE FROM pdf_chunks 
+      WHERE pdf_file_id = ${pdfFileId} 
+      AND chunk_index >= ${fromIndex}
+    `);
   }
 }
 

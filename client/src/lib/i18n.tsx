@@ -1,195 +1,332 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 
-export type Language = "en" | "ar" | "fr";
+export type Language = "en" | "fr" | "ar";
 
-export const LANGUAGES: { code: Language; label: string; nativeLabel: string; dir: "ltr" | "rtl" }[] = [
-  { code: "en", label: "English", nativeLabel: "English", dir: "ltr" },
-  { code: "ar", label: "Arabic", nativeLabel: "العربية", dir: "rtl" },
-  { code: "fr", label: "French", nativeLabel: "Français", dir: "ltr" },
-];
+type Translations = Record<string, Record<string, string>>;
 
-const translations = {
-  nav: {
-    dashboard: { en: "Dashboard", ar: "لوحة القيادة", fr: "Tableau de bord" },
-    subjects: { en: "Subjects", ar: "المواد", fr: "Matières" },
-    exams: { en: "Exams", ar: "الامتحانات", fr: "Examens" },
-    profile: { en: "Profile", ar: "الملف الشخصي", fr: "Profil" },
-    signOut: { en: "Sign Out", ar: "تسجيل الخروج", fr: "Déconnexion" },
-    welcomeBack: { en: "Welcome back", ar: "مرحباً بعودتك", fr: "Bon retour" },
+const translations: Translations = {
+  en: {
+    "nav.howItWorks": "How It Works",
+    "nav.subjects": "Subjects",
+    "nav.features": "Features",
+    "nav.signIn": "Sign In",
+    "nav.dashboard": "Go to Dashboard",
+    "hero.badge": "AI-Powered Tutoring",
+    "hero.title": "Your AI Tutor for the",
+    "hero.titleHighlight": "Mauritanian BAC",
+    "hero.subtitle": "مدرسك الذكي لباكالوريا موريتانيا",
+    "hero.description": "Get step-by-step explanations from your official IPN textbooks, powered by AI. Study smarter, not harder.",
+    "hero.startLearning": "Start Learning",
+    "hero.seeHow": "See How It Works",
+    "stats.pagesIndexed": "Pages Indexed",
+    "stats.subjects": "Subjects",
+    "stats.available": "Available",
+    "howItWorks.title": "How It Works",
+    "howItWorks.description": "Three simple steps to start learning with AI-powered tutoring.",
+    "howItWorks.step1.title": "Upload & Index",
+    "howItWorks.step1.description": "Admins upload official BAC textbooks. AI reads and indexes every page.",
+    "howItWorks.step2.title": "Ask Questions",
+    "howItWorks.step2.description": "Ask any question about your BAC curriculum in French or Arabic.",
+    "howItWorks.step3.title": "Learn Step-by-Step",
+    "howItWorks.step3.description": "Get detailed explanations with page references from your textbooks.",
+    "subjects.title": "BAC Subjects Covered",
+    "subjects.description": "Comprehensive coverage of all major BAC subjects with AI-powered explanations.",
+    "subjects.math.name": "Mathematics",
+    "subjects.math.description": "Algebra, calculus, geometry and statistics for the BAC exam.",
+    "subjects.physics.name": "Physics-Chemistry",
+    "subjects.physics.description": "Mechanics, thermodynamics, optics and chemical reactions.",
+    "subjects.science.name": "Natural Sciences",
+    "subjects.science.description": "Biology, geology and environmental sciences curriculum.",
+    "subjects.philosophy.name": "Philosophy",
+    "subjects.philosophy.description": "Ethics, logic, epistemology and political philosophy.",
+    "subjects.french.name": "French",
+    "subjects.french.description": "Literature analysis, grammar, and dissertation methodology.",
+    "subjects.arabic.name": "Arabic",
+    "subjects.arabic.description": "Literature, grammar, rhetoric and texts.",
+    "features.title": "Built for BAC Success",
+    "features.description": "Every feature is designed to help you prepare effectively for your exams.",
+    "features.rag.title": "RAG-Powered Answers",
+    "features.rag.description": "Answers grounded in your official textbooks, not hallucinations.",
+    "features.steps.title": "Step-by-Step Explanations",
+    "features.steps.description": "Every concept broken down into digestible steps.",
+    "features.citations.title": "Source Citations",
+    "features.citations.description": "See exactly which textbook page each answer comes from.",
+    "features.exam.title": "Exam-Focused",
+    "features.exam.description": "Tutor optimized for BAC exam preparation and scoring.",
+    "cta.title": "Ready to ace your BAC?",
+    "cta.subtitle": "باك مار - نجاحك يبدأ هنا",
+    "cta.button": "Get Started Now",
+    "footer.tagline": "AI-Powered Tutoring for Mauritania",
+    "footer.builtBy": "Built by",
+    "footer.allRights": "All rights reserved.",
+    "loading": "Loading...",
+    "chat.newSession": "New Session",
+    "chat.noSessions": "No sessions yet",
+    "chat.allSubjects": "All Subjects",
+    "chat.newChat": "New Chat",
+    "chat.home": "Home",
+    "chat.loading": "Loading...",
+    "chat.greeting": "How can I help you today?",
+    "chat.greetingDesc": "Ask me anything about your BAC curriculum. I'll provide step-by-step explanations with references from your official textbooks.",
+    "chat.placeholder": "Ask about your BAC curriculum...",
+    "chat.disclaimer": "AI can make mistakes. Verify with your official IPN textbook.",
+    "chat.allLevels": "All Levels",
+    "chat.elementary": "Elementary",
+    "chat.secondary": "Secondary",
+    "chat.highSchool": "High School",
+    "chat.allTextbooks": "All Textbooks",
+    "chat.allChapters": "All Chapters",
+    "chat.curriculumContext": "Curriculum Context",
+    "chat.sourceMaterial": "Source Material",
+    "chat.noSourcesYet": "Ask a question to see source references here.",
+    "chat.pages": "Pages",
+    "chat.currentChapter": "Current Chapter",
+    "chat.selectTopic": "Select a topic",
+    "chat.exploring": "Exploring:",
+    "chat.startConversation": "Start a conversation to track progress",
+    "chat.keyFormulas": "Key Formulas",
+    "chat.examTip": "Exam Tip",
+    "chat.examTipText": "Always show your working steps in the BAC exam. Partial marks are awarded for correct methodology even if the final answer is wrong.",
+    "chat.suggestNewton": "Explain Newton's Second Law",
+    "chat.suggestDNA": "What is DNA replication?",
+    "chat.suggestComplex": "Solve a complex number equation",
+    "chat.suggestPhotosynthesis": "Explain photosynthesis",
+    "chat.today": "Today",
+    "chat.yesterday": "Yesterday",
+    "chat.previousDays": "Previous 7 Days",
+    "chat.older": "Older",
   },
-  landing: {
-    logIn: { en: "Log In", ar: "تسجيل الدخول", fr: "Connexion" },
-    getStarted: { en: "Get Started", ar: "ابدأ الآن", fr: "Commencer" },
-    heroTitle: { en: "Master the BAC with Confidence.", ar: "أتقن الباكالوريا بثقة.", fr: "Maîtrisez le BAC en toute confiance." },
-    heroSubtitle: {
-      en: "Your personal AI study companion. Aligned with the Mauritanian curriculum. Designed for clarity.",
-      ar: "رفيقك الذكي في الدراسة. متوافق مع المنهج الموريتاني. مصمم للوضوح.",
-      fr: "Votre compagnon d'étude IA. Aligné avec le programme mauritanien. Conçu pour la clarté.",
-    },
-    startLearning: { en: "Start Learning Free", ar: "ابدأ التعلم مجاناً", fr: "Commencer gratuitement" },
-    haveAccount: { en: "I have an account", ar: "لدي حساب", fr: "J'ai un compte" },
-    feature1Title: { en: "Official Curriculum", ar: "المنهج الرسمي", fr: "Programme officiel" },
-    feature1Desc: { en: "100% aligned with the IPN program for all streams.", ar: "متوافق 100% مع برنامج IPN لجميع الشعب.", fr: "100% aligné avec le programme IPN pour toutes les séries." },
-    feature2Title: { en: "Smart Explanations", ar: "شروحات ذكية", fr: "Explications intelligentes" },
-    feature2Desc: { en: "Don't just get the answer. Understand the 'Why'.", ar: "لا تحصل على الإجابة فقط. افهم «لماذا».", fr: "Ne vous contentez pas de la réponse. Comprenez le « Pourquoi »." },
-    feature3Title: { en: "Exam Archives", ar: "أرشيف الامتحانات", fr: "Archives d'examens" },
-    feature3Desc: { en: "Practice with past papers from 2010 to 2025.", ar: "تدرب على امتحانات سابقة من 2010 إلى 2025.", fr: "Entraînez-vous avec les sujets de 2010 à 2025." },
-    footer: { en: "Built for Mauritania.", ar: "صُنع لموريتانيا.", fr: "Conçu pour la Mauritanie." },
+  fr: {
+    "nav.howItWorks": "Comment ça marche",
+    "nav.subjects": "Matières",
+    "nav.features": "Fonctionnalités",
+    "nav.signIn": "Se connecter",
+    "nav.dashboard": "Aller au tableau de bord",
+    "hero.badge": "Tutorat propulsé par l'IA",
+    "hero.title": "Votre tuteur IA pour le",
+    "hero.titleHighlight": "BAC Mauritanien",
+    "hero.subtitle": "Votre tuteur intelligent pour le BAC mauritanien",
+    "hero.description": "Obtenez des explications étape par étape de vos manuels IPN officiels, propulsées par l'IA. Étudiez plus intelligemment.",
+    "hero.startLearning": "Commencer",
+    "hero.seeHow": "Voir comment ça marche",
+    "stats.pagesIndexed": "Pages indexées",
+    "stats.subjects": "Matières",
+    "stats.available": "Disponible",
+    "howItWorks.title": "Comment ça marche",
+    "howItWorks.description": "Trois étapes simples pour commencer à apprendre avec le tutorat IA.",
+    "howItWorks.step1.title": "Télécharger et indexer",
+    "howItWorks.step1.description": "Les administrateurs téléchargent les manuels BAC officiels. L'IA lit et indexe chaque page.",
+    "howItWorks.step2.title": "Poser des questions",
+    "howItWorks.step2.description": "Posez n'importe quelle question sur votre programme BAC en français ou en arabe.",
+    "howItWorks.step3.title": "Apprendre étape par étape",
+    "howItWorks.step3.description": "Obtenez des explications détaillées avec des références de pages de vos manuels.",
+    "subjects.title": "Matières du BAC couvertes",
+    "subjects.description": "Couverture complète de toutes les matières principales du BAC avec des explications IA.",
+    "subjects.math.name": "Mathématiques",
+    "subjects.math.description": "Algèbre, calcul, géométrie et statistiques pour l'examen du BAC.",
+    "subjects.physics.name": "Physique-Chimie",
+    "subjects.physics.description": "Mécanique, thermodynamique, optique et réactions chimiques.",
+    "subjects.science.name": "Sciences Naturelles",
+    "subjects.science.description": "Biologie, géologie et programme de sciences de l'environnement.",
+    "subjects.philosophy.name": "Philosophie",
+    "subjects.philosophy.description": "Éthique, logique, épistémologie et philosophie politique.",
+    "subjects.french.name": "Français",
+    "subjects.french.description": "Analyse littéraire, grammaire et méthodologie de dissertation.",
+    "subjects.arabic.name": "Arabe",
+    "subjects.arabic.description": "Littérature, grammaire, rhétorique et textes.",
+    "features.title": "Conçu pour réussir le BAC",
+    "features.description": "Chaque fonctionnalité est conçue pour vous aider à préparer efficacement vos examens.",
+    "features.rag.title": "Réponses RAG",
+    "features.rag.description": "Des réponses basées sur vos manuels officiels, pas des hallucinations.",
+    "features.steps.title": "Explications étape par étape",
+    "features.steps.description": "Chaque concept décomposé en étapes compréhensibles.",
+    "features.citations.title": "Citations des sources",
+    "features.citations.description": "Voyez exactement de quelle page de manuel provient chaque réponse.",
+    "features.exam.title": "Axé sur l'examen",
+    "features.exam.description": "Tuteur optimisé pour la préparation et la réussite de l'examen du BAC.",
+    "cta.title": "Prêt à réussir votre BAC ?",
+    "cta.subtitle": "BAC MAR - Votre succès commence ici",
+    "cta.button": "Commencer maintenant",
+    "footer.tagline": "Tutorat IA pour la Mauritanie",
+    "footer.builtBy": "Créé par",
+    "footer.allRights": "Tous droits réservés.",
+    "loading": "Chargement...",
+    "chat.newSession": "Nouvelle session",
+    "chat.noSessions": "Aucune session",
+    "chat.allSubjects": "Toutes les matières",
+    "chat.newChat": "Nouveau chat",
+    "chat.home": "Accueil",
+    "chat.loading": "Chargement...",
+    "chat.greeting": "Comment puis-je vous aider ?",
+    "chat.greetingDesc": "Posez-moi n'importe quelle question sur votre programme BAC. Je fournirai des explications étape par étape avec des références de vos manuels officiels.",
+    "chat.placeholder": "Posez une question sur le programme BAC...",
+    "chat.disclaimer": "L'IA peut faire des erreurs. Vérifiez avec votre manuel IPN officiel.",
+    "chat.allLevels": "Tous les niveaux",
+    "chat.elementary": "Primaire",
+    "chat.secondary": "Secondaire",
+    "chat.highSchool": "Lycée",
+    "chat.allTextbooks": "Tous les manuels",
+    "chat.allChapters": "Tous les chapitres",
+    "chat.curriculumContext": "Contexte du programme",
+    "chat.sourceMaterial": "Matériel source",
+    "chat.noSourcesYet": "Posez une question pour voir les références ici.",
+    "chat.pages": "Pages",
+    "chat.currentChapter": "Chapitre actuel",
+    "chat.selectTopic": "Sélectionner un sujet",
+    "chat.exploring": "Exploration :",
+    "chat.startConversation": "Commencez une conversation pour suivre la progression",
+    "chat.keyFormulas": "Formules clés",
+    "chat.examTip": "Conseil d'examen",
+    "chat.examTipText": "Montrez toujours vos étapes de travail au BAC. Des points partiels sont accordés pour une méthodologie correcte même si la réponse finale est fausse.",
+    "chat.suggestNewton": "Expliquez la deuxième loi de Newton",
+    "chat.suggestDNA": "Qu'est-ce que la réplication de l'ADN ?",
+    "chat.suggestComplex": "Résoudre une équation de nombres complexes",
+    "chat.suggestPhotosynthesis": "Expliquer la photosynthèse",
+    "chat.today": "Aujourd'hui",
+    "chat.yesterday": "Hier",
+    "chat.previousDays": "7 derniers jours",
+    "chat.older": "Plus ancien",
   },
-  auth: {
-    welcomeBack: { en: "Welcome back", ar: "مرحباً بعودتك", fr: "Bon retour" },
-    enterEmail: { en: "Enter your email to sign in to your account", ar: "أدخل بريدك الإلكتروني لتسجيل الدخول", fr: "Entrez votre email pour vous connecter" },
-    email: { en: "Email", ar: "البريد الإلكتروني", fr: "Email" },
-    password: { en: "Password", ar: "كلمة المرور", fr: "Mot de passe" },
-    signIn: { en: "Sign In", ar: "تسجيل الدخول", fr: "Se connecter" },
-    signingIn: { en: "Signing in...", ar: "جاري الدخول...", fr: "Connexion..." },
-    noAccount: { en: "Don't have an account?", ar: "ليس لديك حساب؟", fr: "Vous n'avez pas de compte ?" },
-    signUp: { en: "Sign up", ar: "إنشاء حساب", fr: "S'inscrire" },
-    createAccount: { en: "Create an account", ar: "إنشاء حساب", fr: "Créer un compte" },
-    startJourney: { en: "Start your preparation journey today", ar: "ابدأ رحلة التحضير اليوم", fr: "Commencez votre préparation dès aujourd'hui" },
-    fullName: { en: "Full Name", ar: "الاسم الكامل", fr: "Nom complet" },
-    stream: { en: "Baccalaureate Stream", ar: "شعبة الباكالوريا", fr: "Série du Baccalauréat" },
-    selectStream: { en: "Select your stream", ar: "اختر شعبتك", fr: "Choisissez votre série" },
-    streamHelp: { en: "This will customize your dashboard and curriculum.", ar: "سيتم تخصيص لوحتك والمنهج الدراسي.", fr: "Cela personnalisera votre tableau de bord et programme." },
-    creatingAccount: { en: "Creating account...", ar: "جاري إنشاء الحساب...", fr: "Création du compte..." },
-    createAccountBtn: { en: "Create Account", ar: "إنشاء حساب", fr: "Créer un compte" },
-    haveAccount: { en: "Already have an account?", ar: "لديك حساب بالفعل؟", fr: "Vous avez déjà un compte ?" },
-    logIn: { en: "Log in", ar: "تسجيل الدخول", fr: "Se connecter" },
-    loginFailed: { en: "Login failed. Please try again.", ar: "فشل تسجيل الدخول. حاول مرة أخرى.", fr: "Échec de la connexion. Veuillez réessayer." },
-    registrationFailed: { en: "Registration failed. Please try again.", ar: "فشل التسجيل. حاول مرة أخرى.", fr: "Échec de l'inscription. Veuillez réessayer." },
+  ar: {
+    "nav.howItWorks": "كيف يعمل",
+    "nav.subjects": "المواد",
+    "nav.features": "المميزات",
+    "nav.signIn": "تسجيل الدخول",
+    "nav.dashboard": "الذهاب إلى لوحة التحكم",
+    "hero.badge": "تعليم مدعوم بالذكاء الاصطناعي",
+    "hero.title": "معلمك الذكي لـ",
+    "hero.titleHighlight": "البكالوريا الموريتانية",
+    "hero.subtitle": "مدرسك الذكي لباكالوريا موريتانيا",
+    "hero.description": "احصل على شروحات خطوة بخطوة من كتبك المدرسية الرسمية، مدعومة بالذكاء الاصطناعي.",
+    "hero.startLearning": "ابدأ التعلم",
+    "hero.seeHow": "شاهد كيف يعمل",
+    "stats.pagesIndexed": "صفحات مفهرسة",
+    "stats.subjects": "مواد",
+    "stats.available": "متاح",
+    "howItWorks.title": "كيف يعمل",
+    "howItWorks.description": "ثلاث خطوات بسيطة للبدء في التعلم مع التدريس بالذكاء الاصطناعي.",
+    "howItWorks.step1.title": "رفع وفهرسة",
+    "howItWorks.step1.description": "يقوم المشرفون برفع الكتب المدرسية الرسمية. يقرأ الذكاء الاصطناعي ويفهرس كل صفحة.",
+    "howItWorks.step2.title": "اطرح الأسئلة",
+    "howItWorks.step2.description": "اطرح أي سؤال حول منهج البكالوريا بالفرنسية أو العربية.",
+    "howItWorks.step3.title": "تعلم خطوة بخطوة",
+    "howItWorks.step3.description": "احصل على شروحات مفصلة مع مراجع الصفحات من كتبك.",
+    "subjects.title": "مواد البكالوريا المغطاة",
+    "subjects.description": "تغطية شاملة لجميع مواد البكالوريا الرئيسية مع شروحات بالذكاء الاصطناعي.",
+    "subjects.math.name": "الرياضيات",
+    "subjects.math.description": "الجبر والتفاضل والهندسة والإحصاء لامتحان البكالوريا.",
+    "subjects.physics.name": "الفيزياء والكيمياء",
+    "subjects.physics.description": "الميكانيكا والديناميكا الحرارية والبصريات والتفاعلات الكيميائية.",
+    "subjects.science.name": "العلوم الطبيعية",
+    "subjects.science.description": "البيولوجيا والجيولوجيا وعلوم البيئة.",
+    "subjects.philosophy.name": "الفلسفة",
+    "subjects.philosophy.description": "الأخلاق والمنطق ونظرية المعرفة والفلسفة السياسية.",
+    "subjects.french.name": "الفرنسية",
+    "subjects.french.description": "تحليل الأدب والقواعد ومنهجية المقال.",
+    "subjects.arabic.name": "العربية",
+    "subjects.arabic.description": "الأدب والنحو والبلاغة والنصوص",
+    "features.title": "مصمم لنجاح البكالوريا",
+    "features.description": "كل ميزة مصممة لمساعدتك في التحضير الفعال لامتحاناتك.",
+    "features.rag.title": "إجابات مدعومة بالاسترجاع",
+    "features.rag.description": "إجابات مبنية على كتبك المدرسية الرسمية، وليست هلوسات.",
+    "features.steps.title": "شروحات خطوة بخطوة",
+    "features.steps.description": "كل مفهوم مقسم إلى خطوات سهلة الفهم.",
+    "features.citations.title": "الاستشهاد بالمصادر",
+    "features.citations.description": "شاهد بالضبط من أي صفحة في الكتاب تأتي كل إجابة.",
+    "features.exam.title": "مركز على الامتحان",
+    "features.exam.description": "معلم محسّن للتحضير لامتحان البكالوريا والنجاح فيه.",
+    "cta.title": "هل أنت مستعد للتفوق في البكالوريا؟",
+    "cta.subtitle": "باك مار - نجاحك يبدأ هنا",
+    "cta.button": "ابدأ الآن",
+    "footer.tagline": "تعليم بالذكاء الاصطناعي لموريتانيا",
+    "footer.builtBy": "صنع بواسطة",
+    "footer.allRights": "جميع الحقوق محفوظة.",
+    "loading": "جاري التحميل...",
+    "chat.newSession": "جلسة جديدة",
+    "chat.noSessions": "لا توجد جلسات بعد",
+    "chat.allSubjects": "جميع المواد",
+    "chat.newChat": "محادثة جديدة",
+    "chat.home": "الرئيسية",
+    "chat.loading": "جاري التحميل...",
+    "chat.greeting": "كيف يمكنني مساعدتك اليوم؟",
+    "chat.greetingDesc": "اسألني أي سؤال عن منهج البكالوريا. سأقدم شروحات خطوة بخطوة مع مراجع من كتبك المدرسية الرسمية.",
+    "chat.placeholder": "اسأل عن منهج البكالوريا...",
+    "chat.disclaimer": "قد يخطئ الذكاء الاصطناعي. تحقق من كتابك المدرسي الرسمي.",
+    "chat.allLevels": "جميع المستويات",
+    "chat.elementary": "ابتدائي",
+    "chat.secondary": "إعدادي",
+    "chat.highSchool": "ثانوي",
+    "chat.allTextbooks": "جميع الكتب",
+    "chat.allChapters": "جميع الفصول",
+    "chat.curriculumContext": "سياق المنهج",
+    "chat.sourceMaterial": "المصادر",
+    "chat.noSourcesYet": "اطرح سؤالاً لرؤية المراجع هنا.",
+    "chat.pages": "الصفحات",
+    "chat.currentChapter": "الفصل الحالي",
+    "chat.selectTopic": "اختر موضوعاً",
+    "chat.exploring": "استكشاف:",
+    "chat.startConversation": "ابدأ محادثة لتتبع التقدم",
+    "chat.keyFormulas": "الصيغ الأساسية",
+    "chat.examTip": "نصيحة للامتحان",
+    "chat.examTipText": "اعرض دائماً خطوات عملك في امتحان البكالوريا. تُمنح درجات جزئية للمنهجية الصحيحة حتى لو كانت الإجابة النهائية خاطئة.",
+    "chat.suggestNewton": "اشرح قانون نيوتن الثاني",
+    "chat.suggestDNA": "ما هو تكرار الحمض النووي؟",
+    "chat.suggestComplex": "حل معادلة أعداد مركبة",
+    "chat.suggestPhotosynthesis": "اشرح عملية التمثيل الضوئي",
+    "chat.today": "اليوم",
+    "chat.yesterday": "أمس",
+    "chat.previousDays": "آخر 7 أيام",
+    "chat.older": "أقدم",
   },
-  dashboard: {
-    goodMorning: { en: "Good Morning", ar: "صباح الخير", fr: "Bonjour" },
-    continuePrep: { en: "Let's continue your preparation for", ar: "لنواصل تحضيرك لمادة", fr: "Continuons votre préparation pour" },
-    continueGeneric: { en: "Let's continue your preparation.", ar: "لنواصل التحضير.", fr: "Continuons votre préparation." },
-    getStarted: { en: "Get Started", ar: "ابدأ", fr: "Commencer" },
-    continueLearning: { en: "Continue Learning", ar: "واصل التعلم", fr: "Continuer l'apprentissage" },
-    completedLessons: { en: "You've completed {count} lesson(s) so far. Keep going!", ar: "لقد أكملت {count} درس حتى الآن. واصل!", fr: "Vous avez terminé {count} leçon(s). Continuez !" },
-    startFirst: { en: "Start your first lesson today.", ar: "ابدأ أول درس لك اليوم.", fr: "Commencez votre première leçon aujourd'hui." },
-    browseSubjects: { en: "Browse Subjects", ar: "تصفح المواد", fr: "Parcourir les matières" },
-    lessonsCompleted: { en: "Lessons Completed", ar: "الدروس المكتملة", fr: "Leçons terminées" },
-    keepStreak: { en: "Keep the streak alive!", ar: "حافظ على استمراريتك!", fr: "Maintenez le rythme !" },
-    subjectsLabel: { en: "Subjects", ar: "المواد", fr: "Matières" },
-    inCurriculum: { en: "In your curriculum", ar: "في منهجك", fr: "Dans votre programme" },
-    progress: { en: "Progress", ar: "التقدم", fr: "Progrès" },
-    done: { en: "done", ar: "مكتمل", fr: "terminé(s)" },
-    justStarted: { en: "Just started", ar: "بدأت للتو", fr: "Juste commencé" },
-    greatProgress: { en: "Great progress!", ar: "تقدم ممتاز!", fr: "Bon progrès !" },
-  },
-  subjects: {
-    yourSubjects: { en: "Your Subjects", ar: "موادك", fr: "Vos matières" },
-    selectSubject: { en: "Select a subject to browse lessons and chapters.", ar: "اختر مادة لتصفح الدروس والفصول.", fr: "Sélectionnez une matière pour parcourir les leçons." },
-    chapters: { en: "Chapter(s)", ar: "فصل", fr: "Chapitre(s)" },
-    lessonsDone: { en: "lessons done", ar: "دروس مكتملة", fr: "leçons terminées" },
-    notStarted: { en: "Not started", ar: "لم يبدأ بعد", fr: "Pas encore commencé" },
-    failedLoad: { en: "Failed to load subjects. Please try again.", ar: "فشل تحميل المواد. حاول مرة أخرى.", fr: "Échec du chargement des matières. Veuillez réessayer." },
-    officialCurriculum: { en: "Official Curriculum", ar: "المنهج الرسمي", fr: "Programme officiel" },
-    noChapters: { en: "No chapters available yet.", ar: "لا توجد فصول متاحة بعد.", fr: "Aucun chapitre disponible pour le moment." },
-    noLessons: { en: "No lessons yet.", ar: "لا توجد دروس بعد.", fr: "Pas de leçons pour le moment." },
-    review: { en: "Review", ar: "مراجعة", fr: "Revoir" },
-    start: { en: "Start", ar: "ابدأ", fr: "Commencer" },
-    min: { en: "min", ar: "د", fr: "min" },
-  },
-  exams: {
-    examArchive: { en: "Exam Archive", ar: "أرشيف الامتحانات", fr: "Archive des examens" },
-    practiceWith: { en: "Practice with official past papers.", ar: "تدرب على الامتحانات الرسمية السابقة.", fr: "Entraînez-vous avec les sujets officiels." },
-    session: { en: "Session", ar: "الدورة", fr: "Session" },
-    view: { en: "View", ar: "عرض", fr: "Voir" },
-    noExams: { en: "No exam papers available yet.", ar: "لا توجد أوراق امتحان متاحة بعد.", fr: "Aucun sujet d'examen disponible pour le moment." },
-  },
-  profile: {
-    profileSettings: { en: "Profile & Settings", ar: "الملف الشخصي والإعدادات", fr: "Profil et paramètres" },
-    manageAccount: { en: "Manage your account and study preferences.", ar: "إدارة حسابك وتفضيلات الدراسة.", fr: "Gérez votre compte et vos préférences." },
-    personalInfo: { en: "Personal Information", ar: "المعلومات الشخصية", fr: "Informations personnelles" },
-    fullName: { en: "Full Name", ar: "الاسم الكامل", fr: "Nom complet" },
-    email: { en: "Email", ar: "البريد الإلكتروني", fr: "Email" },
-    academicSettings: { en: "Academic Settings", ar: "الإعدادات الأكاديمية", fr: "Paramètres académiques" },
-    currentStream: { en: "Current Stream", ar: "الشعبة الحالية", fr: "Série actuelle" },
-    notSelected: { en: "Not selected", ar: "غير محدد", fr: "Non sélectionné" },
-    contactSupport: { en: "Contact support to change your stream.", ar: "تواصل مع الدعم لتغيير شعبتك.", fr: "Contactez le support pour changer de série." },
-    sessionYear: { en: "Session Year", ar: "سنة الدورة", fr: "Année de session" },
-    account: { en: "Account", ar: "الحساب", fr: "Compte" },
-  },
-  lesson: {
-    lesson: { en: "Lesson", ar: "الدرس", fr: "Leçon" },
-    read: { en: "Read", ar: "قراءة", fr: "Lire" },
-    askAI: { en: "Ask AI", ar: "اسأل الذكاء", fr: "Demander à l'IA" },
-    markComplete: { en: "Mark Complete", ar: "تحديد كمكتمل", fr: "Marquer comme terminé" },
-    marking: { en: "Marking...", ar: "جاري التحديد...", fr: "Marquage..." },
-    completed: { en: "Completed", ar: "مكتمل", fr: "Terminé" },
-    noContent: { en: "No content available for this lesson yet.", ar: "لا يوجد محتوى متاح لهذا الدرس بعد.", fr: "Aucun contenu disponible pour cette leçon." },
-    tutorName: { en: "BACMR Tutor", ar: "معلم BACMR", fr: "Tuteur BACMR" },
-    tutorHelp: { en: "I can explain any concept from this lesson. Ask me anything!", ar: "يمكنني شرح أي مفهوم من هذا الدرس. اسألني!", fr: "Je peux expliquer tout concept de cette leçon. Posez-moi vos questions !" },
-    tutorGreeting: {
-      en: "Hello! I'm here to help you understand this lesson. Is there a part that feels confusing? Ask me anything!",
-      ar: "مرحباً! أنا هنا لمساعدتك في فهم هذا الدرس. هل هناك جزء غير واضح؟ اسألني!",
-      fr: "Bonjour ! Je suis là pour vous aider à comprendre cette leçon. Y a-t-il une partie confuse ? Posez-moi vos questions !",
-    },
-    askQuestion: { en: "Ask a question...", ar: "اطرح سؤالاً...", fr: "Posez une question..." },
-    transcribing: { en: "Transcribing...", ar: "جاري النسخ...", fr: "Transcription..." },
-    thinking: { en: "Thinking...", ar: "أفكر...", fr: "Réflexion..." },
-    errorMessage: { en: "Sorry, I couldn't process that request. Please try again.", ar: "عذراً، لم أتمكن من معالجة طلبك. حاول مرة أخرى.", fr: "Désolé, je n'ai pas pu traiter votre demande. Veuillez réessayer." },
-  },
-  common: {
-    loading: { en: "Loading...", ar: "جاري التحميل...", fr: "Chargement..." },
-    student: { en: "Student", ar: "طالب", fr: "Étudiant" },
-  },
-} as const;
-
-type TranslationKeys = typeof translations;
+};
 
 interface LanguageContextType {
-  lang: Language;
-  setLang: (lang: Language) => void;
-  t: <S extends keyof TranslationKeys, K extends keyof TranslationKeys[S]>(section: S, key: K) => string;
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: (key: string) => string;
   dir: "ltr" | "rtl";
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Language>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("bacmr-lang");
-      if (saved === "en" || saved === "ar" || saved === "fr") return saved;
+function getInitialLanguage(): Language {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("bacmr-lang");
+    if (stored === "en" || stored === "fr" || stored === "ar") {
+      return stored;
     }
-    return "en";
-  });
+  }
+  return "en";
+}
 
-  const setLang = useCallback((newLang: Language) => {
-    setLangState(newLang);
-    localStorage.setItem("bacmr-lang", newLang);
-    fetch("/api/auth/language", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ language: newLang }),
-    }).catch(() => {});
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(getInitialLanguage);
+
+  const setLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem("bacmr-lang", lang);
   }, []);
 
-  useEffect(() => {
-    const dir = lang === "ar" ? "rtl" : "ltr";
-    document.documentElement.dir = dir;
-    document.documentElement.lang = lang;
-  }, [lang]);
+  const t = useCallback(
+    (key: string): string => {
+      return translations[language]?.[key] ?? key;
+    },
+    [language],
+  );
 
-  const t = useCallback(<S extends keyof TranslationKeys, K extends keyof TranslationKeys[S]>(section: S, key: K): string => {
-    const entry = translations[section]?.[key];
-    if (!entry) return String(key);
-    return (entry as any)[lang] || (entry as any)["en"] || String(key);
-  }, [lang]);
-
-  const dir = lang === "ar" ? "rtl" : "ltr";
+  const dir = language === "ar" ? "rtl" : "ltr";
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, dir }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, dir }}>
       {children}
     </LanguageContext.Provider>
   );
 }
 
 export function useLanguage() {
-  const ctx = useContext(LanguageContext);
-  if (!ctx) throw new Error("useLanguage must be used within a LanguageProvider");
-  return ctx;
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error("useLanguage must be used within a LanguageProvider");
+  }
+  return context;
 }
